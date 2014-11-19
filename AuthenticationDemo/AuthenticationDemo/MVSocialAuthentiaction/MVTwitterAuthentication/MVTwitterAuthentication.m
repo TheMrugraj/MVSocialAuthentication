@@ -9,11 +9,34 @@
 #import "MVTwitterAuthentication.h"
 #import <Accounts/Accounts.h>
 #import <Social/Social.h>
+
+static MVTwitterAuthentication *sharedInstance = nil;
 @implementation MVTwitterAuthentication
+
++(MVTwitterAuthentication*)sharedInstance
+{
+    @synchronized([MVTwitterAuthentication class])
+    {
+        if (!sharedInstance)
+            sharedInstance = [[self alloc] init];
+        
+        return sharedInstance;
+    }
+    
+    return nil;
+}
+
+
 
 -(void)authenticateViaTwitterWithDelegate:(id<MVTwitterAuthenticationDelegate>)delegate{
     _twitterDelegate = delegate;
     [self getTwitterDataUsingAccountFW];
+}
+
+-(void)logoutFromTwitter{
+    [[FHSTwitterEngine sharedEngine]clearAccessToken];
+    [[NSUserDefaults standardUserDefaults]removeObjectForKey:kMVTwitterAccessTokenKey];
+    [[NSUserDefaults standardUserDefaults]synchronize];
 }
 
 -(void)getTwitterDataUsingAccountFW
@@ -67,6 +90,7 @@
                      dispatch_time_t popTime2 = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayInSeconds2 * NSEC_PER_SEC));
                      dispatch_after(popTime2, dispatch_get_main_queue(), ^(void){
                          NSLog(@"LOGGED IN SUCCEESS FETCHING DATA......");
+                         
                          if([self callSelector:@selector(twitterAuthenticationDoneShouldGoForData) withTarget:_twitterDelegate]){
                              if([_twitterDelegate twitterAuthenticationDoneShouldGoForData]){
                                  [self getTwitterData:twitterAccount strScreenName:_strScreenName];
@@ -175,6 +199,9 @@
         BOOL shouldHandleFallBack = [_twitterDelegate twitterauthenticationShouldHandleFallback];
         if(shouldHandleFallBack){
             NSLog(@"Going For Handlling Fallback");
+            
+            [self loadTwitterEngineToHangleFallback];
+            
             return;
         }else{
             [_twitterDelegate twitterAuthenticationFailed:error];
@@ -184,6 +211,69 @@
     }
     [_twitterDelegate twitterAuthenticationEnded];
 }
+
+
+
+#pragma mark Twitter Oauth Implementation
+
+-(void)loadTwitterEngineToHangleFallback{
+    NSString *aStrConsumerKey   = [_twitterDelegate twitterAuthenticationNeedsConsumerKey];
+    NSString *aStrSecret        = [_twitterDelegate twitterAuthenticationNeedsSecret];
+    
+    [[FHSTwitterEngine sharedEngine]permanentlySetConsumerKey:aStrConsumerKey andSecret:aStrSecret];
+    [[FHSTwitterEngine sharedEngine]setDelegate:self];
+    if([[NSUserDefaults standardUserDefaults] objectForKey:@"MVTwitterAccessToken"]){
+        [[FHSTwitterEngine sharedEngine]loadAccessToken];
+        [self authenticationSuccess];
+    }else{
+        [self loginOAuth];
+    }
+}
+
+-(void)authenticationSuccess{
+    [_twitterDelegate twitterAuthenticationEnded];
+    //TODO: Fetch Info of user and Return it
+    id user = [[FHSTwitterEngine sharedEngine]showUser];
+    
+    _userInfo =user;
+    if([self callSelector:@selector(twitterAuthenticationSucceedWithUserData:) withTarget:_twitterDelegate]){
+        [_twitterDelegate twitterAuthenticationSucceedWithUserData:_userInfo];
+        [_twitterDelegate twitterAuthenticationEnded];
+    }
+}
+- (void)loginOAuth {
+    
+    UIViewController *loginController = [[FHSTwitterEngine sharedEngine]loginControllerWithCompletionHandler:^(BOOL success) {
+        NSLog(success?@"L0L success":@"FAILED");
+        if(!success){
+            [_twitterDelegate twitterAuthenticationFailed:[NSError errorWithDomain:@"Twitter Authentication Failed" code:102 userInfo:nil]];
+        }else{
+            [self authenticationSuccess];
+        }
+    }];
+    UIViewController *superController = [_twitterDelegate twitterAuthenticationWillLoadWebViewForController];
+    if(superController){
+        [superController presentViewController:loginController animated:YES completion:nil];
+    }
+}
+
+
+-(NSString *)loadAccessToken{
+    _strAccessToken = [[NSUserDefaults standardUserDefaults] objectForKey:kMVTwitterAccessTokenKey];
+    if(_strAccessToken)
+        return _strAccessToken;
+    else
+        return nil;
+}
+-(void)storeAccessToken:(NSString *)accessToken{
+    _strAccessToken = accessToken;
+    [[NSUserDefaults standardUserDefaults]setObject:accessToken forKey:kMVTwitterAccessTokenKey];
+    [[NSUserDefaults standardUserDefaults]synchronize];
+}
+
+
+
+#pragma mark MISC METHODS
 
 -(BOOL)isEmptyText:(NSString*)string{
     if(!string || [string stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]].length==0){

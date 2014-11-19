@@ -7,8 +7,8 @@
 //
 
 #import <UIKit/UIKit.h>
-
-@interface ViewController : UIViewController
+#import "MVSocialAuthViewController.h"
+@interface ViewController : MVSocialAuthViewController
 
 
 @end

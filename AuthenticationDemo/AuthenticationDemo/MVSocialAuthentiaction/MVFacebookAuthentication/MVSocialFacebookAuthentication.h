@@ -8,6 +8,9 @@
 
 #import <Foundation/Foundation.h>
 #import <FacebookSDK/FacebookSDK.h>
+
+#define kMVFacebookAccessTokenKey @"MVFacebookAccessToken"
+
 @protocol MVFacebookDelegaete<NSObject>
 
 -(void) facebookAuthSucceedWithUserData:(NSDictionary*)userInfo;
@@ -21,5 +24,5 @@
 @property(nonatomic,strong)id <MVFacebookDelegaete>delegate;
 -(void)authenticateViaFacebook:(id)delegate;
 -(void)logOutFromFacebook;
-
++(id)sharedInstance;
 @end

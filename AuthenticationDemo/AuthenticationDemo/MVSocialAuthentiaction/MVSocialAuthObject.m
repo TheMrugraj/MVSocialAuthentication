@@ -49,7 +49,7 @@ static MVSocialAuthObject* _sharedMySingleton = nil;
 
 -(void)authenticateViaTwitterDelegate:(id<MVSocialDelegates>)delegate{
     _twitterDelegate=delegate;
-    twitterHandler = [[MVTwitterAuthentication alloc]init];
+    twitterHandler = [MVTwitterAuthentication sharedInstance];
     [twitterHandler authenticateViaTwitterWithDelegate:self];
 }
 
@@ -86,10 +86,21 @@ static MVSocialAuthObject* _sharedMySingleton = nil;
     
 }
 
+-(NSString *)twitterAuthenticationNeedsConsumerKey{
+    return @"Xg3ACDprWAH8loEPjMzRg";
+}
+-(NSString *)twitterAuthenticationNeedsSecret{
+    return @"9LwYDxw1iTc6D9ebHdrYCZrJP4lJhQv5uf4ueiPHvJ0";
+}
+-(UIViewController *)twitterAuthenticationWillLoadWebViewForController{
+    return (UIViewController*)_twitterDelegate;
+}
+
 
 -(void)logOut{
-    [[FBSession activeSession]closeAndClearTokenInformation];
-    [[GPPSignIn sharedInstance]signOut];
+    [[MVSocialFacebookAuthentication sharedInstance]logOutFromFacebook];
+    [[MVGooglePlusAuthentication sharedInstance]logoutFromGoogle];
+    [[MVTwitterAuthentication sharedInstance]logoutFromTwitter];
 }
 
 

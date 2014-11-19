@@ -7,8 +7,23 @@
 //
 
 #import "MVSocialFacebookAuthentication.h"
-
+static MVSocialFacebookAuthentication *sharedInstance =nil;
 @implementation MVSocialFacebookAuthentication
+
++(MVSocialFacebookAuthentication*)sharedInstance
+{
+    @synchronized([MVSocialFacebookAuthentication class])
+    {
+        if (!sharedInstance)
+            sharedInstance = [[self alloc] init];
+        
+        return sharedInstance;
+    }
+    
+    return nil;
+}
+
+
 -(void)authenticateViaFacebook:(id)delegate{
 
 
@@ -24,6 +39,7 @@
         [FBSession setActiveSession:session];
         [[FBSession activeSession] openWithBehavior:FBSessionLoginBehaviorUseSystemAccountIfPresent completionHandler:^(FBSession *session, FBSessionState status, NSError *error) {
             if (session.state == FBSessionStateOpen || session.state == FBSessionStateOpenTokenExtended || session.state==FBSessionStateCreatedTokenLoaded) {
+                [_delegate facebookAuthEnded];
                 [self sendDataWithSession:session];
             }else if(session.state==FBSessionStateClosedLoginFailed){
                 [_delegate facebookAuthFailed:error];
@@ -35,12 +51,30 @@
 
 -(void)sendDataWithSession:(FBSession*)session{
     _session = session;
-    [_delegate facebookAuthSucceedWithUserData:(NSDictionary*)session];
+    
+    [[FBRequest requestForMe] startWithCompletionHandler:^(FBRequestConnection *connection, NSDictionary<FBGraphUser> *FBuser, NSError *error) {
+        if (error) {
+            // Handle error
+            [_delegate facebookAuthFailed:error];
+        }
+        
+        else {
+
+            NSString *userImageURL = [NSString stringWithFormat:@"https://graph.facebook.com/%@/picture?type=large", [FBuser objectID]];
+            NSMutableDictionary *aDictResponse = [NSMutableDictionary dictionaryWithDictionary:FBuser];
+            [aDictResponse setObject:userImageURL forKey:@"image"];
+            [_delegate facebookAuthSucceedWithUserData:aDictResponse];
+        }
+    }];
+    
+    
 }
 
 -(void)logOutFromFacebook{
     if([FBSession activeSession]){
-            [FBSession.activeSession closeAndClearTokenInformation];
+        [[NSUserDefaults standardUserDefaults] removeObjectForKey:kMVFacebookAccessTokenKey];
+        [[NSUserDefaults standardUserDefaults]synchronize];
+        [FBSession.activeSession closeAndClearTokenInformation];
     }
 }
 
